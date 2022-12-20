@@ -1,22 +1,40 @@
 '''
 rps_p,bps_p: red/blue particles position
+blue side always be calculate first
 '''
 from scipy.stats import dirichlet
 import numpy as np
 import random
 
-np.random.seed(1)
+# np.random.seed(1)
 
-A = np.array([[8, 9, 3],
-              [2, 5, 6],
-              [4, 1, 7]])
-B = -A
-# print(B.shape)
-# a = np.random.dirichlet(np.ones(3), size=1)
+# A = np.array([[8, 9, 3],
+#               [2, 5, 6],
+#               [4, 1, 7]])
+# B = -A
+
+A = np.array([
+    [1, 235, 0, 0.1],
+    [0, 1, 235, 0.1],
+    [235, 0, 1, 0.1],
+    [1.1, 1.1, 1.1, 0]
+])
+B = np.array([
+    [1, 0, 235, 1.1],
+    [235, 1, 0, 1.1],
+    [0, 235, 1, 1.1],
+    [0.1, 0.1, 0.1, 0]
+])
+
+# get normalized first
+banch = (np.max(A)+np.max(B)-np.min(A)-np.min(B)) / 4
+A = A/banch
+B = B/banch
+print(A, B)
 
 
 class PSO():
-    def __init__(self, A, B, p_num=20, iter_num=50, w_start=1, w_end=0.1, c1=2, c2=2, vmax=2):
+    def __init__(self, A, B, p_num=80, iter_num=10, w_start=1, w_end=0.1, c1=2, c2=2, vmax=2, cut=0.01):
         self.A = A
         self.row_num, self.col_num = A.shape
         self.B = B
@@ -27,17 +45,17 @@ class PSO():
         self.c1 = c1
         self.c2 = c2
         self.vmax = vmax
+        self.cut = cut
         self.ini_ps()
-        # self.evaluation()
         self.get_NE()
-        return self.bps_gbest_history, self.rps_gbest_history
 
     def ini_ps(self):
         # random mixed strategy for blue players
+        # p_num rows, len(blue side strategy size)
         self.bps_posi = np.random.dirichlet(
             np.ones(self.col_num), size=self.p_num)
-        self.bps_velo = np.ones((self.col_num, self.p_num))
-        self.bps_pbest = np.ones((self.col_num, self.p_num))
+        self.bps_velo = np.ones((self.p_num, self.col_num))
+        self.bps_pbest = np.ones((self.p_num, self.col_num))
         self.bps_gbest_history = np.ones((self.col_num))
 
         # random mixed strategy for red players
@@ -55,7 +73,8 @@ class PSO():
     #  It is lucky to have a same formulation of fitness matrix in the paper.
     def evaluation(self):
         for i in range(self.p_num):
-            #  We use the matrix multiply to replace the max and Traverse process
+            #! calculate the i_th particle's fitness
+            #!  We use the matrix multiply to replace the max-choose and Traverse process
             m1 = np.max(np.matmul(self.A, self.bps_posi[i]))
             m2 = np.max(np.matmul(self.rps_posi[i], self.B))
 
@@ -64,23 +83,32 @@ class PSO():
             blue_u = np.matmul(
                 np.matmul(self.rps_posi[i], self.B), self.bps_posi[i])
 
-            self.ps_fit[i] = m1+red_u-m1-blue_u
+            self.ps_fit[i] = m1-red_u+m2-blue_u
         # print(self.ps_fit)
 
     def get_NE(self):
-        for iter in range(self.num_iter):
+        for iter in range(self.iter_num):
+            # the damping of w from w_start to w_end
+            w = self.w_end+(self.w_start-self.w_end) * \
+                (self.iter_num-iter) / (self.iter_num)
+            # w = self.w_start
             #  Evaluate all of the particles.
             self.evaluation()
+            # w = np.mean(self.ps_fit)
+            # w = 1
 
             #  update the gbest.
-            gbest_index = np.where(a=np.min(self.ps_fit))[0]
-            rp_gbest = self.rps_posi(gbest_index)
-            bp_gbest = self.bps_posi(gbest_index)
+            min_fit = np.min(self.ps_fit)
+            gbest_index = np.where(self.ps_fit == min_fit)[0][0]
+            # rp_gbest = self.rps_posi(gbest_index)
+            # bp_gbest = self.bps_posi(gbest_index)
+            if min_fit < self.ps_gbest_fit_history:
+                self.ps_gbest_fit_history = min_fit
+                self.bps_gbest_history = self.bps_posi[gbest_index]
+                self.rps_gbest_history = self.rps_posi[gbest_index]
 
-            if np.min(self.ps_fit) < self.ps_gbest_fit_history:
-                self.ps_gbest_fit_history = np.min(self.ps_fit)
-                self.bps_gbest_history = self.bps_posi(gbest_index)
-                self.rps_gbest_history = self.rps_posi(gbest_index)
+            if min_fit < self.cut:
+                return self.bps_gbest_history, self.rps_gbest_history
 
             #  Get the Pbest and update
             for i in range(self.p_num):
@@ -90,13 +118,13 @@ class PSO():
 
                 #  Calculate the velocity of each row( Particle).
                 #!  truncation by the V max.
-                self.bps_velo[i] = self.w_end*self.bps_velo[i] +\
+                self.bps_velo[i] = w*self.bps_velo[i] +\
                     self.c1 * random.random() * (self.bps_pbest[i] - self.bps_posi[i]) +\
                     self.c2 * random.random() * (self.bps_gbest_history -
                                                  self.bps_posi[i])
                 self.bps_velo[np.where(self.bps_velo > self.vmax)] = self.vmax
 
-                self.rps_velo[i] = self.w_end*self.rps_velo[i] +\
+                self.rps_velo[i] = w*self.rps_velo[i] +\
                     self.c1 * random.random() * (self.rps_pbest[i] - self.rps_posi[i]) +\
                     self.c2 * random.random() * (self.rps_gbest_history -
                                                  self.rps_posi[i])
@@ -105,21 +133,27 @@ class PSO():
                 #  Update the positions of the particle swarm.
                 # ! normalization for constrain
                 self.bps_posi[i] = (self.bps_posi[i] + self.bps_velo[i])
+                self.bps_posi[np.where(self.bps_posi < 0)] = 0
                 self.bps_posi[i] = self.bps_posi[i] / np.sum(self.bps_posi[i])
+
                 self.rps_posi[i] = self.rps_posi[i] + self.rps_velo[i]
+                self.rps_posi[np.where(self.rps_posi < 0)] = 0
                 self.rps_posi[i] = self.rps_posi[i] / np.sum(self.rps_posi[i])
 
-            print(iter, self.ps_gbest_fit_history)
+            print(iter, self.ps_gbest_fit_history, '\n')
+        return self.rps_gbest_history, self.bps_gbest_history
 
 
 p = PSO(A, B)
-a = np.array([1, 2, 7])
+p1, p2 = p.get_NE()
+print(p1, p2)
 
+# a = np.array([1, 2, 7])
 # print(np.dirichlet(a))
-alpha = dirichlet.mean(alpha=a)
+# alpha = dirichlet.mean(alpha=a)
 # dir_mean = dirichlet.mean(alpha)
-print(alpha)
-print(p.ps_velc)
+# print(alpha)
+# print(p.ps_velc)
 # print(dir_mean)
 # print(np.matmul(A, a))
 # print(np.max(np.matmul(a, A)))
