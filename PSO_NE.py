@@ -5,6 +5,7 @@ blue side always be calculate first
 from scipy.stats import dirichlet
 import numpy as np
 import random
+import time
 
 # np.random.seed(1)
 
@@ -13,28 +14,32 @@ import random
 #               [4, 1, 7]])
 # B = -A
 
-A = np.array([
-    [1, 235, 0, 0.1],
-    [0, 1, 235, 0.1],
-    [235, 0, 1, 0.1],
-    [1.1, 1.1, 1.1, 0]
-])
-B = np.array([
-    [1, 0, 235, 1.1],
-    [235, 1, 0, 1.1],
-    [0, 235, 1, 1.1],
-    [0.1, 0.1, 0.1, 0]
-])
+# A = np.array([
+#     [1, 235, 0, 0.1],
+#     [0, 1, 235, 0.1],
+#     [235, 0, 1, 0.1],
+#     [1.1, 1.1, 1.1, 0]
+# ])
+# B = np.array([
+#     [1, 0, 235, 1.1],
+#     [235, 1, 0, 1.1],
+#     [0, 235, 1, 1.1],
+#     [0.1, 0.1, 0.1, 0]
+# ])
+
+# dimension = int(1e5)
+# A = np.random.dirichlet(np.ones(dimension), size=dimension)
+# B = -A
 
 # get normalized first
-banch = (np.max(A)+np.max(B)-np.min(A)-np.min(B)) / 4
-A = A/banch
-B = B/banch
-print(A, B)
+# banch = (np.max(A)+np.max(B)-np.min(A)-np.min(B)) / 4
+# A = A/banch
+# B = B/banch
+# print(A, B)
 
 
 class PSO():
-    def __init__(self, A, B, p_num=80, iter_num=10, w_start=1, w_end=0.1, c1=2, c2=2, vmax=2, cut=0.01):
+    def __init__(self, A, B, p_num=80, iter_num=10, w_start=1, w_end=0.1, c1=2, c2=2, vmax=2, cut=0.01, stagnate_factor=1e-6):
         self.A = A
         self.row_num, self.col_num = A.shape
         self.B = B
@@ -46,8 +51,8 @@ class PSO():
         self.c2 = c2
         self.vmax = vmax
         self.cut = cut
+        self.stagnate_factor = stagnate_factor
         self.ini_ps()
-        self.get_NE()
 
     def ini_ps(self):
         # random mixed strategy for blue players
@@ -102,12 +107,21 @@ class PSO():
             gbest_index = np.where(self.ps_fit == min_fit)[0][0]
             # rp_gbest = self.rps_posi(gbest_index)
             # bp_gbest = self.bps_posi(gbest_index)
+
             if min_fit < self.ps_gbest_fit_history:
                 self.ps_gbest_fit_history = min_fit
                 self.bps_gbest_history = self.bps_posi[gbest_index]
                 self.rps_gbest_history = self.rps_posi[gbest_index]
 
+            # stagnate and cut
+            if iter > 2:
+                if self.ps_gbest_fit_history - min_fit < self.stagnate_factor:
+                    print('pre-end: stagnate and cut')
+                    return self.bps_gbest_history, self.rps_gbest_history
+
+            # enough to cut
             if min_fit < self.cut:
+                print('pre-end: enough to cut')
                 return self.bps_gbest_history, self.rps_gbest_history
 
             #  Get the Pbest and update
@@ -144,19 +158,22 @@ class PSO():
         return self.rps_gbest_history, self.bps_gbest_history
 
 
-p = PSO(A, B)
-p1, p2 = p.get_NE()
-print(p1, p2)
+if __name__ == '__main__':
+    t1 = time.time()
+    p = PSO(A, B)
+    p1, p2 = p.get_NE()
+    # print(p1, p2)
+    print('cal-time: ', time.time()-t1)
 
-# a = np.array([1, 2, 7])
-# print(np.dirichlet(a))
-# alpha = dirichlet.mean(alpha=a)
-# dir_mean = dirichlet.mean(alpha)
-# print(alpha)
-# print(p.ps_velc)
-# print(dir_mean)
-# print(np.matmul(A, a))
-# print(np.max(np.matmul(a, A)))
-# A = np.array([[8, 9, 3],
-#               [2, 5, 6],
-#               [4, 1, 7]])
+    # a = np.array([1, 2, 7])
+    # print(np.dirichlet(a))
+    # alpha = dirichlet.mean(alpha=a)
+    # dir_mean = dirichlet.mean(alpha)
+    # print(alpha)
+    # print(p.ps_velc)
+    # print(dir_mean)
+    # print(np.matmul(A, a))
+    # print(np.max(np.matmul(a, A)))
+    # A = np.array([[8, 9, 3],
+    #               [2, 5, 6],
+    #               [4, 1, 7]])
