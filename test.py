@@ -4,20 +4,20 @@ import numpy as np
 
 
 ###############################################################################
-##                          生成状态控制空间，叉乘并去除重复                    ##
+##       生成状态控制空间，叉乘并利用set函数去除重复，获得全部战斗选择序列    ##
 ###############################################################################
-# el = list(itertools.product([1, 2, 3, 4, 5, 6, 7, 8],
-#                             (4, 5)))
-# del_index = []
-# for i, e in enumerate(el):
-#     if len(list(e)) != len(set(e)):
-#         print(i, e)
-#         del_index.append(i)
-# for i in reversed(del_index):
-#     print(i)
-#     del el[i]
-# print(el)
+el = list(itertools.product([1, 2, 3, 4, 5, 6, 7, 8],
+                            (4, 5)))
+del_index = []
+for i, e in enumerate(el):
+    if len(list(e)) != len(set(e)):
+        del_index.append(i)
+for i in reversed(del_index):
+    del el[i]
+print(el)
 
+el = list(itertools.product())
+print(el)
 ###############################################################################
 #!#                          测试大型矩阵拼接。                                ##
 ###############################################################################
@@ -48,14 +48,16 @@ import numpy as np
 # ]
 # )
 
-a = np.array([
-    [1, 2, 3],
-    [3, 4, 5]
-])
+# a = np.array([
+#     [1, 2, 3],
+#     [3, 4, 5]
+# ])
 
-print(np.where(a == 3))
-print(np.where(a == 3)[0])
-print(a[np.where(a == 3)])
+# print(np.where(a == 3))
+# print(np.where(a == 3)[0])
+# print(a[np.where(a == 3)])
 
-a[np.where(a == 3)]=0
-print(a)
+# a[np.where(a == 3)]=0
+# print(a)
+
+print(np.array([[3, 4, 5], [3, 4, 5]]).T)
