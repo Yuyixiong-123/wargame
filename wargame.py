@@ -292,7 +292,7 @@ class WarEnv():
     def __get_ma_seq(self):
         # aim: 根据k阶段下，红蓝两军的情况，给出两军各自的行动分类序列
         # input: 红蓝两军units
-        # output:两个字典对 所组成的列表，如{0:m,1:m,2:a}
+        # output:两个字典对 所组成的列表
         # [('mmm', 'mmmmmm'), ('mma', 'mmmmmm'), ('amm', 'mmmmmm'), ('ama', 'mmmmmm')]
 
         rb_act_code_pair_list = []
@@ -334,31 +334,213 @@ class WarEnv():
             itertools.product(b_act_code_list, r_act_code_list))
         return rb_act_code_pair_list
 
-    def __get_cr_list(self, act_type='mmama'):
+    def __split_level(self, temp_result):
+        # aim: 将不同层级的结果拆分为一个层级，而且转为了list
+        # input:  [((1, 3), 7), ((1, 3), 9), ((1, 5), 7), ((1, 5), 9), ((2, 3), 7), ((2, 3), 9), ((2, 5), 7), ((2, 5), 9)]
+        # output: [[1, 3, 7], [1, 3, 9], [1, 5, 7], [1, 5, 9], [2, 3, 7], [2, 3, 9], [2, 5, 7], [2, 5, 9]]
+        new_result = []
+        for i in range(len(temp_result)):
+            a = list(temp_result[i][0])
+            b = temp_result[i][1]
+            a.append(b)
+            new_result.append(a)
+        return new_result
+
+    def __var_list_product(self, lst):
+        # aim: 获得长度不定的list中各元素的叉乘
+        # input: E.g. [(7, 9), (3, 5),(7, 9), (3, 5)]
+        # output: [[1, 3, 7, 3], [1, 3, 7, 5], [1, 3, 9, 3], [1, 3, 9, 5], [1, 5, 7, 3], [1, 5, 7, 5], [1, 5, 9, 3], [1, 5, 9, 5], [2, 3, 7, 3], [2, 3, 7, 5], [2, 3, 9, 3], [2, 3, 9, 5], [2, 5, 7, 3], [2, 5, 7, 5], [2, 5, 9, 3], [2, 5, 9, 5]]
+
+        long = len(lst)
+
+        if long > 2:
+            temp_result = list(itertools.product(lst[0], lst[1]))
+            for i in range(1, long-1):
+                # 需要循环迭代连乘
+                temp_result = list(itertools.product(temp_result, lst[i+1]))
+                temp_result = self.__split_level(temp_result)
+            return temp_result
+        elif long == 2:
+            return list(itertools.product(lst[0], lst[1]))
+        elif long == 1:
+            return list(lst[0])
+
+    def __get_c_from_ats(self, ru):
+        # aim: 将原来只有目标的ats ，加上移动和salvo变成一个控制序列c
+        # input: ru， where ru.ats=[3,4,5]
+        # output: [ [0,3,1]  [0,3,2]  [0,4,1] [0,5,1] ]
+        temp_ats = []
+        for i in range(len(ru.ats)):
+            td_c = list()
+            td_c.append(0)
+            td_c.append(ru.ats[i])
+            temp_ats += ((list(itertools.product((td_c,), ru.ass))))
+        return self.__split_level(temp_ats)
+
+    def __get_c_from_move(self, u):
+        # aim: 将原来只有目标的ats ，加上移动和salvo变成一个控制序列c
+        # input: u where u.ams=[3,4,5]
+        # output: [ [3,0,0]  [4,0,0]  [5,0,0] ]
+        temp_move = []
+        for i in range(len(u.ams)):
+            td_c = [0, 0]
+            td_c.insert(0, u.ams[i])
+            temp_move.append(td_c)
+        return temp_move
+
+    def get_cr_list(self, act_type='aammm'):
         # aim: 根据可能的code如mmmmm，生成全部可能的cr控制序列
         # input: 如amm这种控制序列
         # output:[cr1,cr2,...]每一个cri是一个字典
 
-        attack_unit = []  # 保存选择攻击的单位sn
-        move_unit = []  # 保存选择移动的单位的sn
+        attack_units = []  # 保存选择攻击的单位sn
+        move_units = []  # 保存选择移动的单位的sn
         for i in range(len(act_type)):
             if act_type[i] == 'a':
-                attack_unit.append(i)
+                attack_units.append(i)
             else:
-                move_unit.append(i)
+                move_units.append(i)
 
         # 联合生成全部选择攻击的单位，所形成的cri的列表，如[ [(0,1,1),(0,2,1)]，  [(0,1,1),(0,2,2)]， ... ]
+        # att_units_action其数据结构为：[([0, 3, 1], [0, 6, 1]), ([0, 3, 1], [0, 6, 2]), ([0, 4, 1], [0, 6, 1]), ([0, 4, 1], [0, 6, 2])]
         att_units_action = []
-        ats_list=[]
-        for sn in attack_unit:
-            ats_list.append(self.red_force_units[sn].ats)
-        
-        
+        if len(attack_units) > 0:
+            ats_list = []  # 有5个ru，就有5个元素（列表）：temp_c，每个元素temp_c是该单位的控制向量的集合
+            for sn in attack_units:
+                temp_c = self.__get_c_from_ats(self.red_force_units[sn])
+                ats_list.append(temp_c)
+            att_units_action = self.__var_list_product(ats_list)
+            if type(att_units_action[0][0]) == int:
+                # 此处考虑仅单个元素选择...action仅为2层嵌套列表的情况，则需要增加维度
+                att_units_action = [att_units_action]
+
         # 联合生成全部选择移动的单位，所形成的cri的列表，如 [ [(1,0,0)]，  [(2,0,0)]， ... ]
+        # move_units_action的数据结构为 [[[0, 0, 0], [0, 0, 0], [0, 0, 0]], [[0, 0, 0], [0, 0, 0], [1, 0, 0]],...]
         move_units_action = []
+        if len(move_units) > 0:
+            move_list = []  # 有5个ru，就有5个元素（列表）：temp_c，每个元素temp_c是该单位的控制向量的集合
+            for sn in move_units:
+                temp_c = self.__get_c_from_move(self.red_force_units[sn])
+                move_list.append(temp_c)
+            move_units_action = self.__var_list_product(move_list)
+            if type(move_units_action[0][0]) == int:
+                # 此处考虑仅单个元素选择...action仅为2层嵌套列表的情况，则需要增加维度
+                move_units_action = [move_units_action]
+        # print(move_units_action)
 
         product_att_move = []
+        # 移动命令可能性，与开火命令可能性，叉乘之后组合起来的列表.其中的每一个元素，数据结构如下：([[0, 0, 0], [0, 0, 0], [0, 0, 0]], ([0, 3, 1], [0, 6, 1]))
         cr_list = []
+        # 列表，每一个元素都是一个地点，代表r_units的集体控制命令，每个元素的数据结构如下：{2: [0, 0, 0], 3: [2, 0, 0], 4: [4, 0, 0], 0: [0, 4, 1], 1: [0, 6, 1]}
+
+        if len(move_units) > 0 and len(attack_units) > 0:
+            # 针对同时有m和a的情况，需要有product_att_move，里面层级多一些
+            product_att_move = list(itertools.product(
+                move_units_action, att_units_action))
+            for i in range(len(product_att_move)):
+                one_c = {}
+                for m_sn in range(len(move_units)):
+                    one_c[move_units[m_sn]] = product_att_move[i][0][m_sn]
+                for att_sn in range(len(attack_units)):
+                    one_c[attack_units[att_sn]] = product_att_move[i][1][att_sn]
+                cr_list.append(one_c)
+
+        elif len(attack_units) == 0:
+            # 针对仅有m的情况，有move_units_action就行了，里面层级少一些
+            for i in range(len(move_units_action)):
+                one_c = {}
+                for m_sn in range(len(move_units)):
+                    one_c[move_units[m_sn]] = move_units_action[i][m_sn]
+                cr_list.append(one_c)
+
+        elif len(move_units) == 0:
+            # 针对仅有m的情况，有att_units_action就行了，里面层级少一些
+            for i in range(len(att_units_action)):
+                one_c = {}
+                for att_sn in range(len(attack_units)):
+                    one_c[attack_units[att_sn]] = att_units_action[i][att_sn]
+                cr_list.append(one_c)
+        # print(cr_list[2])
+        return cr_list
+
+    def get_cb_list(self, act_type='amm'):
+        # aim: 根据可能的code如amm，生成全部可能的cb控制序列
+        # input: 如amm这种控制序列
+        # output:[cb1,cb2,...]每一个cbi是一个字典
+
+        attack_units = []  # 保存选择攻击的单位sn
+        move_units = []  # 保存选择移动的单位的sn
+        for i in range(len(act_type)):
+            if act_type[i] == 'a':
+                attack_units.append(i)
+            else:
+                move_units.append(i)
+
+        # 联合生成全部选择攻击的单位，所形成的cbi的列表，如[ [(0,1,1),(0,2,1)]，  [(0,1,1),(0,2,2)]， ... ]
+        # att_units_action其数据结构为：[([0, 3, 1], [0, 6, 1]), ([0, 3, 1], [0, 6, 2]), ([0, 4, 1], [0, 6, 1]), ([0, 4, 1], [0, 6, 2])]
+        att_units_action = []
+        if len(attack_units) > 0:
+            ats_list = []  # 有2个bu，就有2个元素（列表）：temp_c，每个元素temp_c是该单位的控制向量的集合
+            for sn in attack_units:
+                temp_c = self.__get_c_from_ats(self.blue_force_units[sn])
+                ats_list.append(temp_c)
+            att_units_action = self.__var_list_product(ats_list)
+
+            if type(att_units_action[0][0]) == int:
+                # 此处考虑仅单个元素选择...action仅为2层嵌套列表的情况，则需要增加维度
+                att_units_action = [att_units_action]
+
+        # 联合生成全部选择移动的单位，所形成的cri的列表，如 [ [(1,0,0)]，  [(2,0,0)]， ... ]
+        # move_units_action的数据结构为 [[[0, 0, 0], [0, 0, 0], [0, 0, 0]], [[0, 0, 0], [0, 0, 0], [1, 0, 0]],...]
+        move_units_action = []
+        if len(move_units) > 0:
+            move_list = []  # 有2个bu，就有2个元素（列表）：temp_c，每个元素temp_c是该单位的控制向量的集合
+            for sn in move_units:
+                temp_c = self.__get_c_from_move(self.blue_force_units[sn])
+                move_list.append(temp_c)
+            move_units_action = self.__var_list_product(move_list)
+
+            if type(move_units_action[0][0]) == int:
+                # 此处考虑仅单个元素选择...action仅为2层嵌套列表的情况，则需要增加维度
+                move_units_action = [move_units_action]
+        # print(move_units_action)
+
+        product_att_move = []
+        # 移动命令可能性，与开火命令可能性，叉乘之后组合起来的列表.其中的每一个元素，数据结构如下：([[0, 0, 0], [0, 0, 0], [0, 0, 0]], ([0, 3, 1], [0, 6, 1]))
+        cb_list = []
+        # 列表，每一个元素都是一个地点，代表r_units的集体控制命令，每个元素的数据结构如下：{2: [0, 0, 0], 3: [2, 0, 0], 4: [4, 0, 0], 0: [0, 4, 1], 1: [0, 6, 1]}
+
+        if len(move_units) > 0 and len(attack_units) > 0:
+            # 针对同时有m和a的情况，需要有product_att_move，里面层级多一些
+            product_att_move = list(itertools.product(
+                move_units_action, att_units_action))
+            for i in range(len(product_att_move)):
+                one_c = {}
+                for m_sn in range(len(move_units)):
+                    one_c[move_units[m_sn]] = product_att_move[i][0][m_sn]
+                for att_sn in range(len(attack_units)):
+                    one_c[attack_units[att_sn]] = product_att_move[i][1][att_sn]
+                cb_list.append(one_c)
+
+        elif len(attack_units) == 0:
+            # 针对仅有m的情况，有move_units_action就行了，里面层级少一些
+            for i in range(len(move_units_action)):
+                one_c = {}
+                for m_sn in range(len(move_units)):
+                    one_c[move_units[m_sn]] = move_units_action[i][m_sn]
+                cb_list.append(one_c)
+
+        elif len(move_units) == 0:
+            # 针对仅有m的情况，有att_units_action就行了，里面层级少一些
+            for i in range(len(att_units_action)):
+                one_c = {}
+                for att_sn in range(len(attack_units)):
+                    one_c[attack_units[att_sn]] = att_units_action[i][att_sn]
+                cb_list.append(one_c)
+
+        print(cb_list[21])
+
+        return cb_list
 
     def get_cb_cr_1stepGT(self):
         # aim: 优选智能博弈的双方策略，这个策略首先用随机选择的，然后
@@ -367,21 +549,37 @@ class WarEnv():
 
         # 给出可能的行动分类序列v1
         # ! 1个行动分类序列v1，由2个字典组成，分别代表红方和蓝方各单位的类型
-        act_type_RF = []
-        act_type_BF = []
+        act_type_set = self.__get_ma_seq()
+        # [('mmm', 'mmmmmm'), ('mma', 'mmmmmm'), ('amm', 'mmmmmm'), ('ama', 'mmmmmm')]
+        for (act_type_BF, act_type_RF) in act_type_set:
+            cb_list = self.get_cb_list(act_type_BF)
+            cr_list = self.get_cr_list(act_type_RF)
+            for bi in range(len(cb_list)):
+                for rj in range(len(cr_list)):
+                    """ print(cb_list[bi], cr_list[rj])：{0: [0, 0, 0], 1: [0, 0, 0], 2: [0, 0, 0]} {0: [2, 0, 0], 1: [6, 0, 0], 2: [6, 0, 0], 3: [2, 0, 0], 4: [4, 0, 0], 5: [7, 0, 0]} """
 
-        pass
+                    # 依次抽取cb,cr，计算效能值，形成A,B矩阵，计算分区子矩阵的stackelberg equilibrium
 
-        # 针对一个行动分类序列，给出分区调整后的行动分类序列v2，
-        # ! 1个行动分类序列v2，由三个字典组成，一个是被拆出去的单位及其行动类型，一个是红方各单位的行动类型，一个是蓝方各单位的类型
+                    # 从全部stackelberg equilibrium中获得全局最优，返回对应的控制向量cb,cr
+
+                    pass
 
         # 针对每一个行动分类序列v2，构造全部的cb，cr，形成列表
-
-        # 依次抽取cb,cr，计算效能值，形成A,B矩阵，计算分区子矩阵的stackelberg equilibrium
-
-        # 从全部stackelberg equilibrium中获得全局最优，返回对应的控制向量cb,cr
 
 
 if __name__ == '__main__':
     we = WarEnv()
     print(we.blue_force_units[0].name)
+    # we.blue_force_units[0].ats = [3, 4]
+    # we.blue_force_units[0].ass = [1]
+    # we.blue_force_units[1].ats = [6]
+    # we.blue_force_units[1].ass = [1, 2]
+    # we.blue_force_units[2].ats = [6]
+    # we.blue_force_units[2].ass = [1, 2]
+    # we.blue_force_units[3].ats = [6]
+    # we.blue_force_units[3].ass = [1, 2]
+    # we.blue_force_units[4].ats = [6]
+    # we.blue_force_units[4].ass = [1, 2]
+    # print(we.get_cb_list('mmm'))
+    # we.get_cb_list('amm')
+    we.get_cb_cr_1stepGT()
