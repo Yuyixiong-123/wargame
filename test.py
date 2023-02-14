@@ -1,8 +1,15 @@
+import matplotlib.pyplot as plt
+import pandas as pd
 import nashpy as nash
 import itertools
 import numpy as np
+import math
+import time
 
-
+a = np.square(np.array((9, 1)) - np.array((2, 1)))
+print(a)
+b = - np.sqrt(np.sum(a))
+print(math.exp(b))
 ###############################################################################
 ##       生成状态控制空间，叉乘并利用set函数去除重复，获得全部战斗选择序列    ##
 ###############################################################################
@@ -15,14 +22,76 @@ import numpy as np
 # for i in reversed(del_index):
 #     del el[i]
 # print(el)
+# el = list(itertools.product(["重大地震", "地质灾害", "森林草原火灾", "洪涝灾害"], [
+#           "北京", "天津", "河北", "山西", "山东", "内蒙古"]))
 
-# el = list(itertools.product())
-# print(el)
+el = np.zeros((1, 2), dtype=np.float16)
+print(el)
+# for e in el:
+#     print(e[0], e[1])
+
+
+def split_integer(m, n):
+    # 可以将整数m，按照最平均的要求，拆分为n份，返回拆分后的列表如[197, 197, 197, 198]
+    assert n > 0
+    quotient = int(m / n)
+    remainder = m % n
+    if remainder > 0:
+        return [quotient] * (n - remainder) + [quotient + 1] * remainder
+    if remainder < 0:
+        return [quotient - 1] * -remainder + [quotient] * (n + remainder)
+    return [quotient] * n
+
+
+# cb_list = range(1, 200)
+# cb_length = len(cb_list)
+# cr_list = range(2, 200, 2)
+# cr_length = len(cr_list)
+
+# partition_n = math.ceil(cb_length * cr_length / 5000)  # 矩阵分割数
+# #! 采取分割红方控制序列的方式来做计算
+# print(partition_n)
+# pr_num_list = split_integer(cr_length, partition_n)
+# start_num = 0
+# for pn in range(partition_n):
+#     cr_list_block = cr_list[start_num: start_num+pr_num_list[pn]]
+#     start_num = start_num+pr_num_list[pn]
+#     print(len(cr_list_block), (cr_list_block[0]))
+
+# a = {'a': [1, 2, 3, 6], 'b': [3, 4, 9, 5]}
+# a = pd.DataFrame(a)
+# a.plot(kind='line')
+# plt.show()
+# print(a)
+
+
+# a = [(1, 2), (3, 5), (8, 9)]
+# xlist = []
+# ylist = []
+# for i in range(len(a)):
+#     xlist.append(a[i][0])
+#     ylist.append(a[i][1])
+# plt.plot(xlist, ylist)
+# plt.show()
+# a = pd.DataFrame({'a': a})
+
+# a.plot(kind='line')
+# plt.show()
+# print(a)
+# def tuple_add(tuple1, tuple2):
+#     zipped = zip(tuple1, tuple2)
+#     mapped = map(sum, zipped)
+#     return tuple(mapped)
+
+
+# print(tuple_add([1,2],[3,4]))
+
+
 class Unit():
     def __init__(self, force_class, name, sn, x0, y0, p0, w0) -> None:
         self.force_class = force_class  # B\R
         self.name = name  # 具体类型如RD
-        self.sn = sn  # serial number 对应矩阵中的序列号、索引
+        self.sn = sn  # serial number 对应矩阵中的序列号,索引
         self.xy = (x0, y0)  # 位置
         self.xy_list = [(x0, y0)]
         self.p = p0  # 存活平台
