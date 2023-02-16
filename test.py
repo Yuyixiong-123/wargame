@@ -10,6 +10,7 @@ a = np.square(np.array((9, 1)) - np.array((2, 1)))
 print(a)
 b = - np.sqrt(np.sum(a))
 print(math.exp(b))
+print(1)
 ###############################################################################
 ##       生成状态控制空间，叉乘并利用set函数去除重复，获得全部战斗选择序列    ##
 ###############################################################################
@@ -42,6 +43,7 @@ def split_integer(m, n):
         return [quotient - 1] * -remainder + [quotient] * (n + remainder)
     return [quotient] * n
 
+print(split_integer(200,3))
 
 # cb_list = range(1, 200)
 # cb_length = len(cb_list)
